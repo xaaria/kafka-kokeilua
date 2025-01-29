@@ -6,7 +6,8 @@ import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.KStream;
-import org.apache.kafka.streams.kstream.ValueMapper;
+import org.apache.kafka.streams.kstream.KTable;
+import org.apache.kafka.streams.kstream.Materialized;
 
 import java.util.Arrays;
 import java.util.Properties;
@@ -32,12 +33,24 @@ public class Main {
 
         KStream<String, String> streamWords = sbuilder.stream("words");
         KStream<String, String> streamSent  = sbuilder.stream("sentences");
+//        KStream<String, String> streamWordsGroup  = sbuilder.stream("sentences");
         streamSent.flatMapValues( val -> Arrays.asList(val.split("\\s")) ).to("words");    // whitespace split
 
 
         final Topology top = sbuilder.build();
         // Writes topology to stream
         // System.out.println( top.describe() );
+
+        KTable<String, Long> wg = streamWords
+                .groupBy( (k, v) -> v )
+                .count(Materialized.as("word-count"));
+
+        KTable<String, Long> filteredWg = wg.filter((k, v) -> v >= 3);
+
+        // Print out common words
+        filteredWg.toStream().foreach((key, value)
+                -> System.out.printf("Common words: %s, '%d times'%n", key, value)
+        );
 
         streamWords
             .filter( (k,v) -> v != null )
